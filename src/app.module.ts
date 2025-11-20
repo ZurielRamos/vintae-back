@@ -34,26 +34,34 @@ pg.types.setTypeParser(1700, (value: string) => {
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
         
-        // --- INICIO DEBUGGING VERCEL ---
+        // --- INICIO DEBUGGING/FALLBACK ---
         const dbUrl = configService.get<string>('DATABASE_URL');
-        console.log(`[VERCEL DEBUG] NODE_ENV: ${process.env.NODE_ENV}`);
-        console.log(`[VERCEL DEBUG] DATABASE_URL leída: ${dbUrl ? 'DETECTADA' : 'NO DETECTADA/VACÍA'}`);
-        if (dbUrl && dbUrl.length < 10) {
-            // Esto solo se ejecutará si la URL es muy corta (posiblemente un valor como 'base')
-            console.error(`[VERCEL DEBUG] ¡ADVERTENCIA! URL demasiado corta. Valor: ${dbUrl}`);
+        console.log(`[DEBUG] NODE_ENV: ${process.env.NODE_ENV}`);
+        if (dbUrl) {
+           console.log(`[DEBUG] Usando DATABASE_URL (Fallback): DETECTADA`);
+        } else {
+           console.log(`[DEBUG] Usando variables separadas (Host, Port, User)`);
         }
-        // --- FIN DEBUGGING VERCEL ---
+        // --- FIN DEBUGGING/FALLBACK ---
 
         return {
             namingStrategy: new SnakeNamingStrategy(),
             type: 'postgres',
-            // Usa la URL completa: 'postgresql://user:password@host:port/database'
-            url: dbUrl, 
+
+            // ⚠️ Estrategia Principal: Usar variables separadas (ideal para pgbouncer)
+            // Si DATABASE_URL está definida, se usará esa URL completa.
+            // Si no, se usan las variables separadas (más control sobre el puerto).
+            url: dbUrl,
+            host: dbUrl ? undefined : configService.get<string>('DB_HOST'),
+            port: dbUrl ? undefined : configService.get<number>('DB_PORT'), // Usar 6543 para pgbouncer
+            username: dbUrl ? undefined : configService.get<string>('DB_USERNAME'),
+            password: dbUrl ? undefined : configService.get<string>('DB_PASSWORD'),
+            database: dbUrl ? undefined : configService.get<string>('DB_DATABASE'),
             
             // Descubre entidades automáticamente
             entities: [__dirname + '/**/*.entity{.ts,.js}'], 
             
-            // ¡IMPORTANTE! Solo usar en desarrollo. En Vercel, gestiona las migraciones.
+            // ¡IMPORTANTE! Solo usar en desarrollo. En producción, gestiona las migraciones.
             synchronize: true,
 
             // Configuración SSL: Necesario para la mayoría de los proveedores de DB en la nube
