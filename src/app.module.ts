@@ -40,7 +40,6 @@ pg.types.setTypeParser(1700, (value: string) => {
         type: 'postgres',
         // Usa la URL completa: 'postgresql://user:password@host:port/database'
         url: configService.get<string>('DATABASE_URL'), 
-        host: configService.get<string>('DATABASE_HOST'),
         
         // Descubre entidades automáticamente
         entities: [__dirname + '/**/*.entity{.ts,.js}'], 
