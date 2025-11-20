@@ -60,10 +60,13 @@ async function bootstrap() {
 }
 
 // ESTA LÍNEA ES CLAVE PARA VERCEl
-export const handler = async (req, res) => {
+const serverlessHandler = async (req, res) => {
   await bootstrap();
   // Llama al manejador de Express (que ahora es cachedNestApp)
   cachedNestApp(req, res); 
 };
+
+export default serverlessHandler;
+
 
 //bootstrap();
