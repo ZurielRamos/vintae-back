@@ -1,5 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class SizeGroupDto {
+  @ApiProperty({ example: 'Adulto' })
+  @IsString()
+  @IsNotEmpty()
+  label: string;
+
+  @ApiProperty({ example: ['S', 'M', 'L'] })
+  @IsArray()
+  @IsString({ each: true })
+  sizes: string[];
+}
+
+class SpecificationDto {
+  @ApiProperty({ example: 'Material' })
+  @IsString()
+  @IsNotEmpty()
+  key: string;
+
+  @ApiProperty({ example: 'Algodón 100%' })
+  @IsString()
+  @IsNotEmpty()
+  value: string;
+}
 
 export class CreateBaseProductDto {
 
@@ -13,15 +38,42 @@ export class CreateBaseProductDto {
   @IsOptional()
   description?: string;
 
+  @ApiProperty({ example: 'Camiseta Básica (Algodón)', description: 'Etiqueta para selectores en frontend' })
+  @IsString()
+  @IsOptional()
+  productLabel?: string;
+
   @ApiProperty({
     example: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
     required: false,
-    description: 'Tamaños disponibles',
+    description: 'Tamaños disponibles (Legacy)',
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   sizes?: string[];
+
+  @ApiProperty({
+    type: [SizeGroupDto],
+    required: false,
+    description: 'Grupos de tallas (ej: Adulto, Niño)',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SizeGroupDto)
+  sizeGroups?: SizeGroupDto[];
+
+  @ApiProperty({
+    type: [SpecificationDto],
+    required: false,
+    description: 'Especificaciones técnicas',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SpecificationDto)
+  specifications?: SpecificationDto[];
 
   @ApiProperty({
     example: ['Blanco', 'Negro', 'Azul', 'Verde', 'Amarillo', 'Rojo'],

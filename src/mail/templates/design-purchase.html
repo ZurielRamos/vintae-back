@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .purchase-details {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #11998e;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ ¡Compra Exitosa!</h1>
+        </div>
+        <div class="content">
+            <h2>Hola {{userName}},</h2>
+            <p>Tu compra se ha completado exitosamente. Ya puedes descargar tu diseño.</p>
+            <div class="purchase-details">
+                <h3>📦 Detalles de la Compra</h3>
+                <p><strong>Diseño:</strong> {{designName}}</p>
+                <p><strong>ID de Compra:</strong> {{purchaseId}}</p>
+                <p><strong>Acceso:</strong> Vitalicio ♾️</p>
+            </div>
+            <p>Tienes acceso ilimitado para descargar este diseño cuando lo necesites.</p>
+            <a href="{{frontendUrl}}/designs/{{purchaseId}}/download" class="button">Descargar Ahora</a>
+        </div>
+        <div class="footer">
+            <p>© {{year}} Vesster. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+
+</html>

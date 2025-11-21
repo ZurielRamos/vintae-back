@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #f9f9f9;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .success-icon {
+            font-size: 64px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .features {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .feature-item {
+            margin: 15px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .feature-item:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #11998e;
+            font-weight: bold;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #11998e;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎊 ¡Cuenta Verificada!</h1>
+        </div>
+        <div class="content">
+            <div class="success-icon">✅</div>
+            <h2>¡Excelente, {{name}}!</h2>
+            <p>Tu cuenta ha sido verificada exitosamente. Ahora tienes acceso completo a todas las funciones de Vesster.
+            </p>
+            <div class="features">
+                <h3>🚀 Ya puedes:</h3>
+                <div class="feature-item">Explorar miles de diseños exclusivos</div>
+                <div class="feature-item">Comprar y descargar diseños digitales</div>
+                <div class="feature-item">Crear tu lista de favoritos</div>
+                <div class="feature-item">Realizar pedidos personalizados</div>
+                <div class="feature-item">Recibir ofertas y promociones exclusivas</div>
+            </div>
+            <p style="text-align: center;">¡Comienza tu experiencia ahora!</p>
+            <div style="text-align: center;">
+                <a href="{{frontendUrl}}/explore" class="button">Explorar Diseños</a>
+            </div>
+        </div>
+        <div class="footer">
+            <p>© {{year}} Vesster. Todos los derechos reservados.</p>
+        </div>
+    </div>
+</body>
+
+</html>

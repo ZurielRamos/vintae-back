@@ -30,14 +30,26 @@ export class BaseProduct {
     @Column()
     name: string;
 
-    @Column({nullable: true})
+    @Column({ nullable: true })
     description: string;
+
+    @Column({ nullable: true })
+    productLabel: string;
+
+    @Column({ unique: true, length: 4 })
+    sku: string;
 
     @Column('text', { array: true, default: [] })
     colors: string[];
 
     @Column('text', { array: true, default: [] })
     sizes: string[];
+
+    @Column({ type: 'jsonb', default: [] })
+    sizeGroups: { label: string; sizes: string[] }[];
+
+    @Column({ type: 'jsonb', default: [] })
+    specifications: { key: string; value: string }[];
 
     @Column('text', { array: true, default: [] })
     imageUrls: string[];

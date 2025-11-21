@@ -13,13 +13,20 @@ import * as pg from 'pg';
 import { CategoryModule } from './categories/categories.module';
 import { AiModule } from './ai/ai.module';
 import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { CreditsModule } from './credits/credits.module';
+import { CouponsModule } from './coupons/coupons.module';
+import { WishlistModule } from './wishlist/wishlist.module';
+import { CartModule } from './cart/cart.module';
+import { OrdersModule } from './orders/orders.module';
+import { MailModule } from './mail/mail.module';
 
 // OID 1700 es para el tipo NUMERIC/DECIMAL.
 pg.types.setTypeParser(1700, (value: string) => {
-    if (value === null || value === undefined || value === '') {
-        return null;
-    }
-    return parseFloat(value);
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  return parseFloat(value);
 });
 
 @Module({
@@ -33,40 +40,40 @@ pg.types.setTypeParser(1700, (value: string) => {
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        
+
         // --- LOG DE CONFIRMACIÓN (Opcional, pero útil) ---
         console.log(`[DB_CONFIG] Usando Host: ${configService.get<string>('DB_HOST')}`);
         console.log(`[DB_CONFIG] Usando Puerto: ${configService.get<number>('DB_PORT')}`);
         // --- FIN LOG ---
 
         return {
-            namingStrategy: new SnakeNamingStrategy(),
-            type: 'postgres',
-            
-            // 🛑 ¡ATENCIÓN! Usamos las variables separadas y NO la 'url' para asegurar el control.
-            host: configService.get<string>('DB_HOST'),
-            port: configService.get<number>('DB_PORT'), // Puerto 6543 (pgbouncer)
-            username: configService.get<string>('DB_USERNAME'),
-            password: configService.get<string>('DB_PASSWORD'),
-            database: configService.get<string>('DB_DATABASE'),
-            
-            // Descubre entidades automáticamente
-            entities: [__dirname + '/**/*.entity{.ts,.js}'], 
-            
-            // ¡IMPORTANTE! Solo usar en desarrollo.
-            synchronize: true, 
+          namingStrategy: new SnakeNamingStrategy(),
+          type: 'postgres',
 
-            // Configuración SSL (Necesario para Supabase en producción)
-            ssl: 
-              process.env.NODE_ENV === 'production'
-                ? { rejectUnauthorized: false } 
-                : false,
-            
-            // Estrategia Serverless: Pool de Conexiones
-            extra: {
-              max: 1, 
-              idleTimeoutMillis: 30000, 
-            },
+          // 🛑 ¡ATENCIÓN! Usamos las variables separadas y NO la 'url' para asegurar el control.
+          host: configService.get<string>('DB_HOST'),
+          port: configService.get<number>('DB_PORT'), // Puerto 6543 (pgbouncer)
+          username: configService.get<string>('DB_USERNAME'),
+          password: configService.get<string>('DB_PASSWORD'),
+          database: configService.get<string>('DB_DATABASE'),
+
+          // Descubre entidades automáticamente
+          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+
+          // ¡IMPORTANTE! Solo usar en desarrollo.
+          synchronize: true,
+
+          // Configuración SSL (Necesario para Supabase en producción)
+          ssl:
+            process.env.NODE_ENV === 'production'
+              ? { rejectUnauthorized: false }
+              : false,
+
+          // Estrategia Serverless: Pool de Conexiones
+          extra: {
+            max: 1,
+            idleTimeoutMillis: 30000,
+          },
         }
       },
       inject: [ConfigService],
@@ -77,8 +84,15 @@ pg.types.setTypeParser(1700, (value: string) => {
     CategoryModule,
     AiModule,
     UsersModule,
+    AuthModule,
+    CreditsModule,
+    CouponsModule,
+    WishlistModule,
+    CartModule,
+    OrdersModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

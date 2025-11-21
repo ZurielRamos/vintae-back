@@ -8,7 +8,7 @@ import { BaseProduct } from './entities/base-products.entity';
 @ApiTags('Base Products')
 @Controller('base-products')
 export class BaseProductsController {
-  constructor(private readonly baseProductsService: BaseProductsService) {}
+  constructor(private readonly baseProductsService: BaseProductsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Crea un producto base y relaciona sus categorías.' })
@@ -29,5 +29,5 @@ export class BaseProductsController {
   update(@Param('id') id: string, @Body() dto: UpdateBaseProductDto): Promise<BaseProduct> {
     return this.baseProductsService.update(id, dto);
   }
-  
+
 }

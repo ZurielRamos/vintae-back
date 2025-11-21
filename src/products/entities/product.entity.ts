@@ -1,8 +1,5 @@
-import { Column, CreateDateColumn, Entity, JoinColumn, JoinTable, ManyToMany, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
-import { PriceGroup } from "./price-group.entity";
+import { Column, CreateDateColumn, Entity, Generated, JoinColumn, JoinTable, ManyToMany, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { BaseProduct } from "src/base-products/entities/base-products.entity";
-
-
 
 const NumericTransformer = {
     // 1. Al leer (FROM DB -> TO JavaScript/TypeScript)
@@ -33,6 +30,10 @@ export class Product {
     name: string;
 
     @Column()
+    @Generated('increment')
+    sku: number;
+
+    @Column()
     description: string;
 
     @Column('text', { array: true, default: [] })
@@ -46,9 +47,6 @@ export class Product {
 
     @Column('text', { array: true, default: [] })
     availableColors: string[];
-
-    @Column('text', { array: true, default: [] })
-    availableSizes: string[];
 
     @Column('text', { array: true, default: [] })
     designColors: string[];
@@ -89,7 +87,22 @@ export class Product {
     baseProducts: BaseProduct[];
 
     // Campo de anulación individual: puede ser NULO
-    @Column('decimal', { precision: 10, scale: 2, nullable: true , transformer: NumericTransformer })
+    @Column('decimal', { precision: 10, scale: 2, nullable: true, transformer: NumericTransformer })
     individualPrice: number;
+
+    @Column('decimal', { precision: 10, scale: 2, nullable: true , transformer: NumericTransformer })
+    designPrice: number;
+
+    @Column({ default: 0 })
+    designSoldCount: number; // Cuántas veces se vendió el diseño
+
+    @Column({ default: 0 })
+    designDownloadCount: number; // Cuántas veces se descargó
+
+    @Column({ default: 0 })
+    saveCount: number; // Cuántas veces se guardó en favoritos
+
+    @Column({ default: 0 })
+    shareCount: number; // Cuántas veces se compartió
 
 }

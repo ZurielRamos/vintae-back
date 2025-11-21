@@ -177,13 +177,7 @@ async findAll(query: ProductQueryDto) {
     };
   }
 
-
-
-
-
-
-
-
+  
   async update(id: number, updateProductDto: UpdateProductDto) {
     const product = await this.productRepository.findOne({
       where: { id },
@@ -256,32 +250,5 @@ async findAll(query: ProductQueryDto) {
     });
   } 
 
-  private sanitizeProducts(products: Product[]) {
-    return products.map((product) => this.sanitizeProduct(product));
-  }
-
-  private cosineSimilarity(vectorA: number[], vectorB: number[]): number {
-    const length = Math.min(vectorA.length, vectorB.length);
-    if (!length) {
-      return 0;
-    }
-
-    let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
-    for (let i = 0; i < length; i++) {
-      const a = vectorA[i];
-      const b = vectorB[i];
-      dotProduct += a * b;
-      normA += a * a;
-      normB += b * b;
-    }
-
-    if (!normA || !normB) {
-      return 0;
-    }
-
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-  }
+ 
 }

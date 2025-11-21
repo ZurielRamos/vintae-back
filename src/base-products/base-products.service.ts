@@ -14,12 +14,18 @@ export class BaseProductsService {
 		private readonly baseProductRepository: Repository<BaseProduct>,
 		@InjectRepository(ProductCategory)
 		private readonly productCategoryRepository: Repository<ProductCategory>,
-	) {}
+	) { }
 
 	async create(dto: CreateBaseProductDto): Promise<BaseProduct> {
 		const { categoryIds, primaryCategoryId, ...baseData } = dto;
 
-		const baseProduct = this.baseProductRepository.create(baseData);
+		// Generar SKU único
+		const sku = await this.generateSku();
+
+		const baseProduct = this.baseProductRepository.create({
+			...baseData,
+			sku,
+		});
 		const savedProduct = await this.baseProductRepository.save(baseProduct);
 
 		if (categoryIds && categoryIds.length > 0) {
@@ -38,6 +44,35 @@ export class BaseProductsService {
 			where: { id: savedProduct.id },
 			relations: ['productCategories', 'productCategories.category'],
 		}) as Promise<BaseProduct>;
+	}
+
+	/**
+	 * Genera un SKU único de 4 letras mayúsculas
+	 */
+	private async generateSku(): Promise<string> {
+		const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		let sku = '';
+		let isUnique = false;
+		let attempts = 0;
+
+		while (!isUnique && attempts < 10) {
+			sku = '';
+			for (let i = 0; i < 4; i++) {
+				sku += chars.charAt(Math.floor(Math.random() * chars.length));
+			}
+
+			const existing = await this.baseProductRepository.findOne({ where: { sku } });
+			if (!existing) {
+				isUnique = true;
+			}
+			attempts++;
+		}
+
+		if (!isUnique) {
+			throw new Error('No se pudo generar un SKU único después de varios intentos');
+		}
+
+		return sku;
 	}
 
 	async update(id: string, dto: UpdateBaseProductDto): Promise<BaseProduct> {
@@ -88,6 +123,7 @@ export class BaseProductsService {
 			select: {
 				id: true,
 				name: true,
+				sku: true,
 				productCategories: {
 					id: true,
 					category: {
