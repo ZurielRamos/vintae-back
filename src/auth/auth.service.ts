@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { Role } from 'src/common/enums/role.enum';
 import { MailService } from 'src/mail/mail.service';
 import { CreditsService } from 'src/credits/credits.service';
+import { CreditType } from 'src/credits/entities/credit-transaction.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from 'src/users/entities/user.entity';
@@ -98,22 +99,16 @@ export class AuthService {
     user.verificationCodeExpiry = null;
     await this.userRepository.save(user);
 
-    // Recargar 5000 créditos como recompensa
+    // Recargar 5000 créditos de diseño como recompensa
     await this.creditsService.rechargeCredits(
       user.id,
       5000,
+      CreditType.DESIGN,
       'VERIFICACION_EMAIL'
     );
 
-    // Actualizar créditos en el objeto user
-    user.credits += 5000;
-
-    // Enviar email de confirmación
-    try {
-      await this.mailService.sendAccountConfirmedEmail(user.email, user.name);
-    } catch (error) {
-      console.error('Error enviando email de confirmación:', error);
-    }
+    // Obtener balances actualizados
+    const balances = await this.creditsService.getBalances(user.id);
 
     // Generar JWT
     const payload = { sub: user.id, email: user.email, role: user.role };
@@ -124,10 +119,11 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
-        credits: user.credits,
+        designCredits: balances.designCredits,
+        purchaseCredits: balances.purchaseCredits,
         emailVerified: user.emailVerified,
       },
-      message: '¡Cuenta verificada! Has recibido 5000 créditos de bienvenida.',
+      message: '¡Cuenta verificada! Has recibido 5000 créditos de diseño de bienvenida.',
     };
   }
 
@@ -195,13 +191,17 @@ export class AuthService {
     // Generar Token
     const payload = { sub: user.id, email: user.email, role: user.role };
 
+    // Obtener balances
+    const balances = await this.creditsService.getBalances(user.id);
+
     return {
       access_token: this.jwtService.sign(payload),
       user: {
         email: user.email,
         name: user.name,
         role: user.role,
-        credits: user.credits
+        designCredits: balances.designCredits,
+        purchaseCredits: balances.purchaseCredits
       }
     };
   }
@@ -302,6 +302,9 @@ export class AuthService {
         name: phoneUser.name // Asegúrate que tu entidad use 'fullName' o 'name' consistentemente
       };
 
+      // Obtener balances
+      const balances = await this.creditsService.getBalances(phoneUser.id);
+
       return {
         access_token: this.jwtService.sign(payload),
         user: {
@@ -310,7 +313,8 @@ export class AuthService {
           email: phoneUser.phoneNumber,
           phoneNumber: phoneUser.phoneNumber,
           role: phoneUser.role,
-          credits: phoneUser.credits
+          designCredits: balances.designCredits,
+          purchaseCredits: balances.purchaseCredits
         }
       };
 
@@ -432,15 +436,19 @@ export class AuthService {
       name: phoneUser.name
     };
 
+    // Obtener balances
+    const balances = await this.creditsService.getBalances(phoneUser.id);
+
     return {
       access_token: this.jwtService.sign(payload),
       user: {
         id: phoneUser.id,
         name: phoneUser.name,
-        email: phoneUser.email || phoneUser.phoneNumber, // Fallback si email es null
+        email: phoneUser.email || phoneUser.phoneNumber,
         phoneNumber: phoneUser.phoneNumber,
         role: phoneUser.role,
-        credits: phoneUser.credits
+        designCredits: balances.designCredits,
+        purchaseCredits: balances.purchaseCredits
       }
     };
   }

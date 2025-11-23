@@ -1,10 +1,12 @@
 import { Controller, Post, Body, HttpCode, Get, Query } from '@nestjs/common';
 import { StorageService } from './storage.service';
 import { GetUploadUrlDto, GetDownloadUrlDto, FinalizeAccessDto } from './dto/storage.dto';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Almacenamiento de archivos')
 @Controller('storage')
 export class StorageController {
-  constructor(private readonly storageService: StorageService) {}
+  constructor(private readonly storageService: StorageService) { }
 
   // =================================================================
   // ENDPOINT 1: Generar URL de Subida Inicial (Paso 1/2 de Subida)
@@ -43,10 +45,10 @@ export class StorageController {
 
     // 2. Respuesta final
     if (body.accessType === 'public') {
-        const publicUrl = this.storageService.getPublicUrl(body.filePath);
-        return { message: 'Archivo subido y marcado como público.', publicUrl, filePath: body.filePath };
+      const publicUrl = this.storageService.getPublicUrl(body.filePath);
+      return { message: 'Archivo subido y marcado como público.', publicUrl, filePath: body.filePath };
     } else {
-        return { message: 'Archivo subido y mantenido como privado. Use URL firmada para descarga.', filePath: body.filePath };
+      return { message: 'Archivo subido y mantenido como privado. Use URL firmada para descarga.', filePath: body.filePath };
     }
   }
 

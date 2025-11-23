@@ -1,25 +1,5 @@
-import { Column, CreateDateColumn, Entity, Generated, JoinColumn, JoinTable, ManyToMany, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { BaseProduct } from "src/base-products/entities/base-products.entity";
-
-const NumericTransformer = {
-    // 1. Al leer (FROM DB -> TO JavaScript/TypeScript)
-    from: (value: string | number | null): number | null => {
-        if (value === null || value === undefined) {
-            return null;
-        }
-        // PostgreSQL devuelve 'decimal' como string, usamos parseFloat
-        // para convertirlo en un número que pueda usarse en JS.
-        return parseFloat(value as string);
-    },
-    // 2. Al escribir (FROM JavaScript/TypeScript -> TO DB)
-    to: (value: number | null): number | null => {
-        if (value === null || value === undefined) {
-            return null;
-        }
-        // Se asegura de que el valor se guarde como un número
-        return value;
-    },
-};
 
 @Entity()
 export class Product {
@@ -29,9 +9,8 @@ export class Product {
     @Column()
     name: string;
 
-    @Column()
-    @Generated('increment')
-    sku: number;
+    @Column({ unique: true })
+    sku: string; // Auto-generado: {baseProduct.sku}-{contador}
 
     @Column()
     description: string;
@@ -54,8 +33,8 @@ export class Product {
     @Column('text', { array: true, default: [] })
     imageUrls: string[];
 
-    @Column('text', { array: true, default: [] })
-    fileUrls: string[];
+    @Column({ nullable: true })
+    files: string; // Archivo de diseño (un solo archivo)
 
     @Column()
     isEditable: boolean;
@@ -73,26 +52,18 @@ export class Product {
     isPremium: boolean;
 
     // El campo clave para la búsqueda semántica.
-    // Usamos 'float' array ('float4' en Postgres) para almacenar el vector.
-    // Asegúrate de que el tamaño (ej: 1536) coincide con el modelo de embedding.
     @Column('vector', { nullable: true, select: false })
     embedding: any;
 
-    @ManyToMany(() => BaseProduct)
-    @JoinTable({
-        name: 'product_base_products',
-        joinColumn: { name: 'product_id', referencedColumnName: 'id' },
-        inverseJoinColumn: { name: 'base_product_id', referencedColumnName: 'id' },
-    })
-    baseProducts: BaseProduct[];
+    // Relación ManyToOne con BaseProduct (un producto tiene UN base product)
+    @ManyToOne(() => BaseProduct, { eager: true })
+    @JoinColumn({ name: 'base_product_id' })
+    baseProduct: BaseProduct;
 
-    // Campo de anulación individual: puede ser NULO
-    @Column('decimal', { precision: 10, scale: 2, nullable: true, transformer: NumericTransformer })
-    individualPrice: number;
+    @Column({ name: 'base_product_id', type: 'uuid' })
+    baseProductId: string;
 
-    @Column('decimal', { precision: 10, scale: 2, nullable: true , transformer: NumericTransformer })
-    designPrice: number;
-
+    // Contadores de estadísticas
     @Column({ default: 0 })
     designSoldCount: number; // Cuántas veces se vendió el diseño
 

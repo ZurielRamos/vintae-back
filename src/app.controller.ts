@@ -1,7 +1,9 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 import { MailService } from './mail/mail.service';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Test')
 @Controller()
 export class AppController {
   constructor(

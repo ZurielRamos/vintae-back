@@ -8,6 +8,11 @@ export enum TransactionType {
   ADJUSTMENT = 'ADJUSTMENT', // Ajuste manual de admin
 }
 
+export enum CreditType {
+  DESIGN = 'DESIGN',         // Créditos de diseño
+  PURCHASE = 'PURCHASE',     // Créditos de compra
+}
+
 @Entity('credit_transactions')
 export class CreditTransaction {
   @PrimaryGeneratedColumn('uuid')
@@ -18,6 +23,9 @@ export class CreditTransaction {
 
   @Column({ type: 'enum', enum: TransactionType })
   type: TransactionType;
+
+  @Column({ type: 'enum', enum: CreditType })
+  creditType: CreditType; // Tipo de crédito (diseño o compra)
 
   @Column({ nullable: true })
   description: string; // Ej: "Recarga vía Stripe", "Compra Orden #123"
@@ -35,7 +43,7 @@ export class CreditTransaction {
 
   // Guardamos el saldo que quedó DESPUÉS de la transacción (Snapshot)
   @Column({ type: 'decimal', precision: 10, scale: 2 })
-  balanceAfter: number; 
+  balanceAfter: number;
 
   @CreateDateColumn()
   createdAt: Date;

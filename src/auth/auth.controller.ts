@@ -6,12 +6,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
 import { Role } from '../common/enums/role.enum';
-import { ApiBearerAuth, ApiResponse, ApiBadRequestResponse, ApiOperation } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiResponse, ApiBadRequestResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SendOtpDto, VerifyOtpDto } from './dto/phone-login.dto';
 import { OptionalJwtAuthGuard } from './guards/optional-jwt-auth.guard';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 
+@ApiTags('Auntenticación')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) { }

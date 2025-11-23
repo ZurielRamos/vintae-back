@@ -5,6 +5,7 @@ import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { CartService } from '../cart/cart.service';
 import { CreditsService } from '../credits/credits.service';
+import { CreditType } from '../credits/entities/credit-transaction.entity';
 import { CouponsService } from '../coupons/coupons.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatus, PaymentMethod } from 'src/common/enums/order-status.enum';
@@ -13,6 +14,8 @@ import { FindAllOrdersDto } from './dto/find-all-orders.dto';
 import { OrderStatusHistory } from './entities/order-status-history.entity';
 import { ChangeOrderStatusDto } from './dto/change-order-status.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
+import { PaymentsService } from '../payments/payments.service';
+import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
 export class OrdersService {
@@ -22,7 +25,47 @@ export class OrdersService {
     private creditsService: CreditsService,
     private couponsService: CouponsService,
     private dataSource: DataSource,
-  ) {}
+    @Inject(forwardRef(() => PaymentsService))
+    private paymentsService: PaymentsService,
+  ) { }
+
+  // --- CONFIRMAR PAGO (WEBHOOK) ---
+  async confirmOrderPayment(reference: string, transactionId: string, amountInPesos: number) {
+    // 1. Buscar Orden por Referencia
+    const order = await this.orderRepo.findOne({ where: { paymentReference: reference } });
+
+    if (!order) {
+      throw new NotFoundException(`Orden con referencia ${reference} no encontrada`);
+    }
+
+    // 2. Validar Estado
+    if (order.status === OrderStatus.PAID) {
+      return { message: 'Orden ya estaba pagada' };
+    }
+
+    // 3. Validar Monto (Tolerancia de $100 pesos por redondeo)
+    const diff = Math.abs(Number(order.total) - amountInPesos);
+    if (diff > 100) {
+      throw new BadRequestException(`Monto incorrecto. Esperado: ${order.total}, Recibido: ${amountInPesos}`);
+    }
+
+    // 4. Actualizar Estado (Transacción)
+    await this.dataSource.transaction(async (manager) => {
+      order.status = OrderStatus.PAID;
+      await manager.save(order);
+
+      await this.logStatusChange(
+        manager,
+        order.id,
+        OrderStatus.PENDING_PAYMENT,
+        OrderStatus.PAID,
+        null, // Sistema
+        `Pago confirmado por Wompi (Tx: ${transactionId})`
+      );
+    });
+
+    return order;
+  }
 
 
   private async logStatusChange(
@@ -33,16 +76,14 @@ export class OrdersService {
     userId: string | null,
     reason: string
   ) {
-    // SOLUCIÓN FINAL: 'as any' al final del objeto
-    // Esto le dice a TypeScript: "Yo sé lo que estoy haciendo, deja que TypeORM lo maneje"
     const history = manager.create(OrderStatusHistory, {
       order: { id: orderId },
       previousStatus,
       newStatus,
       changedBy: userId ? { id: userId } : null,
       reason
-    } as any); 
-    
+    } as any);
+
     await manager.save(history);
   }
 
@@ -64,19 +105,19 @@ export class OrdersService {
     // 3. Cálculos Iniciales
     const subtotal = cart.subtotal;
     let discount = 0;
-    let shippingCost = 0; // Lógica de envío: $0 por ahora, o calcúlalo aquí
+    let shippingCost = 0;
     let couponIdToUse: string | null = null;
 
     // 4. Aplicar Cupón
     if (dto.couponCode) {
       const coupon = await this.couponsService.validateCoupon(dto.couponCode, userId, subtotal);
-      
+
       if (coupon.type === CouponType.PERCENTAGE) {
         discount = (subtotal * coupon.value) / 100;
       } else if (coupon.type === CouponType.FIXED_AMOUNT) {
         discount = Number(coupon.value);
       } else if (coupon.type === CouponType.GIFT_CARD) {
-        couponIdToUse = coupon.id; // Lo procesamos dentro de la transacción
+        couponIdToUse = coupon.id;
       }
     }
 
@@ -85,7 +126,7 @@ export class OrdersService {
 
     // 5. INICIAR TRANSACCIÓN ACID
     return await this.dataSource.transaction(async (manager) => {
-      
+
       let status: OrderStatus = OrderStatus.PENDING;
       let paymentReference: string | null = null;
       let wompiData: any = null;
@@ -93,9 +134,14 @@ export class OrdersService {
       // --- SWITCH DE MÉTODOS DE PAGO ---
       switch (dto.paymentMethod) {
         case PaymentMethod.WALLET:
-          // Cobro inmediato y atómico
-          // Asegúrate que CreditsService.chargeUser acepte el 'manager'
-          const tx = await this.creditsService.chargeUser(userId, total, 'Pago de Orden', manager);
+          // Cobro inmediato con PURCHASE credits
+          const tx = await this.creditsService.chargeUser(
+            userId,
+            total,
+            CreditType.PURCHASE, // Usar créditos de compra
+            'Pago de Orden',
+            manager
+          );
           paymentReference = tx.transactionId;
           status = OrderStatus.PAID;
           break;
@@ -113,13 +159,17 @@ export class OrdersService {
         case PaymentMethod.WOMPI:
           status = OrderStatus.PENDING_PAYMENT;
           paymentReference = `ORD-${userId.substring(0, 5)}-${Date.now()}`;
-          // AQUÍ GENERAREMOS LA FIRMA MÁS ADELANTE
+
+          const amountInCents = Math.round(total * 100);
+          const currency = 'COP';
+          const signature = this.paymentsService.generateSignature(paymentReference, amountInCents, currency);
+
           wompiData = {
             reference: paymentReference,
-            amountInCents: Math.round(total * 100),
-            currency: 'COP',
-            // publicKey: process.env.WOMPI_PUBLIC,
-            // signature: ...
+            amountInCents,
+            currency,
+            signature, // <--- Firma generada
+            publicKey: process.env.WOMPI_PUB_KEY // Opcional enviarla
           };
           break;
       }
@@ -148,14 +198,16 @@ export class OrdersService {
         quantity: item.quantity,
         selectedColor: item.selectedColor,
         selectedSize: item.selectedSize,
+        variantId: item.variantId,
+        variantLabel: item.variantLabel,
         imageUrl: item.image || undefined
       }));
       await manager.save(OrderItem, orderItems);
 
       // C. Procesar Gift Card (si aplica)
       if (couponIdToUse) {
-         // Si tienes lógica para marcar como usada la gift card
-         // await this.couponsService.markAsUsed(couponIdToUse, manager);
+        // Si tienes lógica para marcar como usada la gift card
+        // await this.couponsService.markAsUsed(couponIdToUse, manager);
       }
 
       // D. Vaciar Carrito
@@ -199,7 +251,7 @@ export class OrdersService {
   }
 
 
-    // --- MÉTODO UNIFICADO DE APROBACIÓN (ADMIN) ---
+  // --- MÉTODO UNIFICADO DE APROBACIÓN (ADMIN) ---
   async approveOrderPayment(orderId: number, adminUserId: string) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
 
@@ -207,7 +259,7 @@ export class OrdersService {
 
     // 1. Validar que el método de pago requiera aprobación manual
     const manualMethods = [PaymentMethod.BANK_TRANSFER, PaymentMethod.CASH_ON_DELIVERY];
-    
+
     if (!manualMethods.includes(order.paymentMethod)) {
       throw new BadRequestException(
         `Este método de pago (${order.paymentMethod}) se procesa automáticamente o no requiere aprobación manual.`
@@ -223,24 +275,24 @@ export class OrdersService {
 
     // USAMOS TRANSACCIÓN AHORA
     return await this.dataSource.transaction(async (manager) => {
-        // 1. Actualizar Orden
-        order.status = OrderStatus.PAID;
-        order.approvedByUserId = adminUserId;
-        order.approvedAt = new Date();
-        
-        await manager.save(order);
+      // 1. Actualizar Orden
+      order.status = OrderStatus.PAID;
+      order.approvedByUserId = adminUserId;
+      order.approvedAt = new Date();
 
-        // 2. Registrar Log (Usando nuestro helper)
-        await this.logStatusChange(
-            manager,
-            order.id,
-            previousStatus,
-            OrderStatus.PAID,
-            adminUserId, // ID del Admin
-            'Pago aprobado manualmente por administrador'
-        );
+      await manager.save(order);
 
-        return order;
+      // 2. Registrar Log (Usando nuestro helper)
+      await this.logStatusChange(
+        manager,
+        order.id,
+        previousStatus,
+        OrderStatus.PAID,
+        adminUserId, // ID del Admin
+        'Pago aprobado manualmente por administrador'
+      );
+
+      return order;
     });
   }
 
@@ -249,16 +301,16 @@ export class OrdersService {
 
   // --- LISTAR ÓRDENES (ADMIN) ---
   async findAllAdmin(dto: FindAllOrdersDto) {
-    const { 
-      page = 1, 
-      limit = 10, 
-      orderId, 
-      status, 
-      paymentMethod, 
-      userId, 
-      startDate, 
-      endDate, 
-      sort 
+    const {
+      page = 1,
+      limit = 10,
+      orderId,
+      status,
+      paymentMethod,
+      userId,
+      startDate,
+      endDate,
+      sort
     } = dto;
 
     // 1. Crear QueryBuilder
@@ -266,12 +318,12 @@ export class OrdersService {
 
     // 2. Unir relaciones necesarias (Para mostrar quién compró)
     // 'user' es el nombre de la propiedad en la entidad Order
-    query.leftJoinAndSelect('order.user', 'user'); 
+    query.leftJoinAndSelect('order.user', 'user');
     // Si quieres ver los items en la lista principal (puede ser pesado), descomenta:
     // query.leftJoinAndSelect('order.items', 'items');
 
     // 3. Aplicar Filtros Dinámicos
-    
+
     if (orderId) {
       // Búsqueda exacta por ID
       query.andWhere('order.id = :orderId', { orderId });
@@ -296,7 +348,7 @@ export class OrdersService {
     if (endDate) {
       // Ajustamos al final del día para incluir todo ese día
       const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999); 
+      end.setHours(23, 59, 59, 999);
       query.andWhere('order.createdAt <= :end', { end });
     }
 
@@ -330,37 +382,37 @@ export class OrdersService {
 
     // Validación lógica básica (Máquina de estados)
     if (order.status === OrderStatus.CANCELLED || order.status === OrderStatus.DELIVERED) {
-        throw new BadRequestException('No se puede cambiar el estado de una orden finalizada');
+      throw new BadRequestException('No se puede cambiar el estado de una orden finalizada');
     }
 
     if (order.status === dto.status) {
-        throw new BadRequestException('La orden ya tiene este estado');
+      throw new BadRequestException('La orden ya tiene este estado');
     }
 
     const previousStatus = order.status;
 
     // TRANSACCIÓN PARA CONSISTENCIA
     return await this.dataSource.transaction(async (manager) => {
-        // 1. Actualizar Orden
-        order.status = dto.status;
-        await manager.save(order);
+      // 1. Actualizar Orden
+      order.status = dto.status;
+      await manager.save(order);
 
-        // 2. Crear Log de Auditoría
-        const history = manager.create(OrderStatusHistory, {
-            orderId: order.id,
-            previousStatus: previousStatus,
-            newStatus: dto.status,
-            changedByUserId: adminUserId, // ID del Admin
-            reason: dto.reason || 'Cambio manual por administrador'
-        });
-        await manager.save(history);
+      // 2. Crear Log de Auditoría
+      const history = manager.create(OrderStatusHistory, {
+        orderId: order.id,
+        previousStatus: previousStatus,
+        newStatus: dto.status,
+        changedByUserId: adminUserId, // ID del Admin
+        reason: dto.reason || 'Cambio manual por administrador'
+      });
+      await manager.save(history);
 
-        // // 3. Lógica adicional (Ej: Devolver stock si cancelan)
-        // if (dto.status === OrderStatus.CANCELLED && previousStatus !== OrderStatus.CANCELLED) {
-        //     // await this.productsService.restoreStock(...)
-        // }
+      // // 3. Lógica adicional (Ej: Devolver stock si cancelan)
+      // if (dto.status === OrderStatus.CANCELLED && previousStatus !== OrderStatus.CANCELLED) {
+      //     // await this.productsService.restoreStock(...)
+      // }
 
-        return order;
+      return order;
     });
   }
 
@@ -369,11 +421,11 @@ export class OrdersService {
 
   // --- VER HISTORIAL DE CAMBIOS ---
   async getStatusHistory(orderId: number) {
-      return this.dataSource.getRepository(OrderStatusHistory).find({
-          where: { orderId },
-          order: { createdAt: 'DESC' },
-          relations: ['changedBy'] // Para mostrar el nombre del admin
-      });
+    return this.dataSource.getRepository(OrderStatusHistory).find({
+      where: { orderId },
+      order: { createdAt: 'DESC' },
+      relations: ['changedBy'] // Para mostrar el nombre del admin
+    });
   }
 
 
@@ -384,7 +436,7 @@ export class OrdersService {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
 
     if (!order) throw new NotFoundException('Orden no encontrada');
-    
+
     // 1. Validar Dueño
     if (order.userId !== userId) {
       throw new BadRequestException('No tienes permiso para cancelar esta orden');
@@ -400,18 +452,19 @@ export class OrdersService {
 
     // 3. TRANSACCIÓN ACID
     return await this.dataSource.transaction(async (manager) => {
-      
+
       // A. Reembolso Automático (Si aplica)
       // Si la orden ya estaba pagada (por Wallet, Wompi o Transferencia aprobada),
       // devolvemos el dinero a la Billetera del usuario.
       if (previousStatus === OrderStatus.PAID) {
-         // Nota: Llamamos a rechargeCredits pasando el 'manager' para que sea atómico
-         await this.creditsService.rechargeCredits(
-            userId, 
-            Number(order.total), 
-            `Reembolso Orden #${order.id}`, 
-            manager
-         );
+        // Nota: Llamamos a rechargeCredits pasando el 'manager' para que sea atómico
+        await this.creditsService.rechargeCredits(
+          userId,
+          Number(order.total),
+          CreditType.PURCHASE, // Reembolsar créditos de compra
+          `Reembolso Orden #${order.id}`,
+          manager
+        );
       }
 
       // B. Actualizar Estado
@@ -431,12 +484,12 @@ export class OrdersService {
       // D. Restaurar Stock (Opcional, si manejas inventario estricto)
       // await this.productsService.restoreStock(order.items, manager);
 
-      return { 
-        message: 'Orden cancelada exitosamente', 
+      return {
+        message: 'Orden cancelada exitosamente',
         refunded: previousStatus === OrderStatus.PAID // Flag para avisar al front
       };
     });
   }
 
-  
+
 }

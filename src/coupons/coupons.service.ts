@@ -2,10 +2,12 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Coupon } from './entities/coupon.entity';
-import { CreditsService } from '../credits/credits.service';
+import { CreditsService } from 'src/credits/credits.service';
+import { CreditType } from 'src/credits/entities/credit-transaction.entity';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { CouponUsage } from './entities/coupon-usage.entity';
-import { CouponType } from 'src/common/enums/coupon-type.enum';
+import { CouponType }
+  from 'src/common/enums/coupon-type.enum';
 
 @Injectable()
 export class CouponsService {
@@ -14,7 +16,7 @@ export class CouponsService {
     @InjectRepository(CouponUsage) private usageRepo: Repository<CouponUsage>,
     private creditsService: CreditsService, // Inyectamos el módulo de créditos
     private dataSource: DataSource,
-  ) {}
+  ) { }
 
   // --- CREAR (ADMIN) ---
   async create(dto: CreateCouponDto) {
@@ -30,9 +32,9 @@ export class CouponsService {
    * @param expectedType (Opcional) Si se envía, fuerza a que el cupón sea de este tipo antes de validar montos.
    */
   async validateCoupon(
-    code: string, 
-    userId: string, 
-    purchaseAmount: number = 0, 
+    code: string,
+    userId: string,
+    purchaseAmount: number = 0,
     expectedType?: CouponType // <--- NUEVO PARÁMETRO
   ): Promise<Coupon> {
 
@@ -47,7 +49,7 @@ export class CouponsService {
     // --- NUEVA VALIDACIÓN DE TIPO (PRIORITARIA) ---
     // Verificamos el tipo ANTES de chequear montos mínimos
     if (expectedType && coupon.type !== expectedType) {
-        throw new BadRequestException(`Este cupón no es válido para esta operación (Tipo esperado: ${expectedType})`);
+      throw new BadRequestException(`Este cupón no es válido para esta operación (Tipo esperado: ${expectedType})`);
     }
     // ----------------------------------------------
 
@@ -73,36 +75,37 @@ export class CouponsService {
     return coupon;
   }
 
-// --- CANJEAR CUPÓN DE RECARGA (SALDO) ---
+  // --- CANJEAR CUPÓN DE RECARGA (SALDO) ---
   async applyRechargeCoupon(code: string, userId: string) {
     // 1. Validación (fuera de la transacción para no bloquear innecesariamente)
     const coupon = await this.validateCoupon(code, userId, 0, CouponType.RECHARGE_CREDIT);
 
     // 2. Transacción Única
     await this.dataSource.transaction(async (manager) => {
-      
+
       // A. Registrar Uso (Usando 'manager')
       const usage = manager.create(CouponUsage, { userId, couponId: coupon.id });
       await manager.save(usage);
 
       // B. Incrementar contador (Usando 'manager')
       await manager.increment(Coupon, { id: coupon.id }, 'usedCount', 1);
-      
+
       // C. Recargar Saldo (¡AQUÍ ESTÁ EL CAMBIO!)
       // Pasamos 'manager' como último argumento. 
       // Ahora CreditsService usará ESTA misma transacción en lugar de esperar una nueva.
       await this.creditsService.rechargeCredits(
-          userId, 
-          Number(coupon.value), 
-          `Cupón: ${code}`, 
-          manager // <--- LA SOLUCIÓN AL BLOQUEO
+        userId,
+        Number(coupon.value),
+        CreditType.PURCHASE, // Recargar créditos de compra
+        `Cupón: ${code}`,
+        manager
       );
     });
 
     // Obtenemos el balance final (fuera de la transacción)
-    return { 
-        message: `Recarga exitosa de $${coupon.value}`, 
-        newBalance: await this.creditsService.getBalance(userId) 
+    return {
+      message: `Recarga exitosa de $${coupon.value}`,
+      newBalance: await this.creditsService.getBalance(userId, CreditType.PURCHASE)
     };
   }
 
@@ -130,7 +133,7 @@ export class CouponsService {
 
     // Mover excedente a wallet
     if (surplus > 0) {
-      await this.creditsService.rechargeCredits(userId, surplus, `Excedente Gift Card ${code}`);
+      await this.creditsService.rechargeCredits(userId, surplus, CreditType.PURCHASE, `Excedente Gift Card ${code}`);
     }
 
     return {

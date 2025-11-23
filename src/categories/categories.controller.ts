@@ -1,14 +1,13 @@
-import { Controller, Post, Body, Get, Param, Patch, Delete, HttpCode, Query, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
-import { CreateCategoryDto, UpdateCategoryDto, LinkBaseProductCategoryDto } from './dto/category.dto';
+import { Controller, Post, Body, Get, Param, HttpCode } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { CreateCategoryDto } from './dto/category.dto';
 import { Category } from './entities/category.entity';
-import { ProductCategory } from './entities/product-category.entity';
 import { CategoryService } from './categories.service';
 
-@ApiTags('Categorias')
+@ApiTags('Categorias Productos')
 @Controller('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly categoryService: CategoryService) { }
 
   // =================================================================
   // 1. GESTIÓN DE CATEGORÍAS (CRUD BÁSICO)

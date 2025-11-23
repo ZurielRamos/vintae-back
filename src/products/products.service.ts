@@ -23,22 +23,32 @@ export class ProductsService {
   }
 
   async create(createProductDto: CreateProductDto) {
-
     try {
-      const { baseProductIds, ...rest } = createProductDto;
+      const { baseProductId, ...rest } = createProductDto;
 
-      const product = this.productRepository.create(rest as DeepPartial<Product>);
+      // 1. Obtener BaseProduct
+      const baseProduct = await this.baseProductRepository.findOne({
+        where: { id: baseProductId }
+      });
 
-      if (baseProductIds && baseProductIds.length > 0) {
-        const baseProducts = await this.baseProductRepository.find({
-          where: { id: In(baseProductIds) },
-        });
-        if (baseProducts.length !== baseProductIds.length) {
-          throw new NotFoundException('Uno o más "Productos Base" no encontrados en la base de datos');
-        }
-        product.baseProducts = baseProducts;
+      if (!baseProduct) {
+        throw new NotFoundException('BaseProduct no encontrado');
       }
 
+      // 2. Generar SKU automático: {baseProduct.sku}-{contador}
+      const count = await this.productRepository.count({
+        where: { baseProductId }
+      });
+      const productSKU = `${baseProduct.sku}-${String(count + 1).padStart(3, '0')}`;
+
+      // 3. Crear producto
+      const product = this.productRepository.create({
+        ...rest,
+        sku: productSKU,
+        baseProductId: baseProduct.id
+      } as DeepPartial<Product>);
+
+      // 4. Generar embedding para búsqueda semántica
       const embedding = await this.generateEmbedding(`
         Nombre: ${product.name}.
         Tags: ${product.tags.join(', ')}.
@@ -60,7 +70,7 @@ export class ProductsService {
 
 
 
-async findAll(query: ProductQueryDto) {
+  async findAll(query: ProductQueryDto) {
     const {
       page = 1,
       limit = 20,
@@ -80,55 +90,77 @@ async findAll(query: ProductQueryDto) {
     const queryBuilder = this.productRepository.createQueryBuilder('product');
 
     // --- 0. Relaciones ---
-    queryBuilder.leftJoinAndSelect('product.baseProducts', 'baseProducts');
+    queryBuilder.leftJoin('product.baseProduct', 'baseProduct');
+
+    // --- 0.1 Select Base (siempre necesarios) ---
+    const selectFields = [
+      'product.id',
+      'product.sku',
+      'product.name',
+      'product.imageUrls'
+    ];
+
+    // --- 0.2 Agregar campos condicionalmente según orderBy ---
+    const allowedOrderFields = ['name', 'createdAt', 'updatedAt'];
+    const safeOrderBy = allowedOrderFields.includes(orderBy) ? orderBy : 'name';
+
+    // Agregar campo de ordenamiento si no está ya en el select
+    if (safeOrderBy === 'createdAt' && !selectFields.includes('product.createdAt')) {
+      selectFields.push('product.createdAt');
+    }
+    if (safeOrderBy === 'updatedAt' && !selectFields.includes('product.updatedAt')) {
+      selectFields.push('product.updatedAt');
+    }
+
+    queryBuilder.select(selectFields);
 
     // --- 1. Filtros Dinámicos ---
     const toArray = (value: any) => {
-        if (!value) return [];
-        return Array.isArray(value) ? value : [value];
+      if (!value) return [];
+      return Array.isArray(value) ? value : [value];
     };
 
-    // Filtro BaseProducts (Many-to-Many)
+    // Filtro BaseProducts (ManyToOne)
     if (baseProducts) {
       const ids = toArray(baseProducts);
-      queryBuilder.andWhere('baseProducts.id IN (:...ids)', { ids });
+      queryBuilder.andWhere('baseProduct.id IN (:...ids)', { ids });
     }
 
     // Filtros Arrays (Postgres text[]) con Overlap (&&)
-    
+
     // CORREGIDO: Filtro por 'themes'
     if (themes) {
-      queryBuilder.andWhere('product.themes && (:themes)::text[]', { 
-        themes: toArray(themes) 
+      queryBuilder.andWhere('product.themes && (:themes)::text[]', {
+        themes: toArray(themes)
       });
     }
 
     if (styles) {
-      queryBuilder.andWhere('product.styles && (:styles)::text[]', { 
-        styles: toArray(styles) 
+      queryBuilder.andWhere('product.styles && (:styles)::text[]', {
+        styles: toArray(styles)
       });
     }
 
     if (availableColors) {
-      queryBuilder.andWhere('product.availableColors && (:colors)::text[]', { 
-        colors: toArray(availableColors) 
+      queryBuilder.andWhere('product.availableColors && (:colors)::text[]', {
+        colors: toArray(availableColors)
       });
     }
 
     if (designColors) {
-      queryBuilder.andWhere('product.designColors && (:dcolors)::text[]', { 
-        dcolors: toArray(designColors) 
+      queryBuilder.andWhere('product.designColors && (:dcolors)::text[]', {
+        dcolors: toArray(designColors)
       });
     }
 
     if (tags) {
-      queryBuilder.andWhere('product.tags && (:tags)::text[]', { 
-        tags: toArray(tags) 
+      queryBuilder.andWhere('product.tags && (:tags)::text[]', {
+        tags: toArray(tags)
       });
     }
 
     // --- 2. Lógica de Ordenamiento y Optimización ---
-    
+
     if (searchText) {
       // BÚSQUEDA SEMÁNTICA
       const searchEmbedding = await this.generateEmbedding(searchText);
@@ -138,17 +170,15 @@ async findAll(query: ProductQueryDto) {
       // Aunque 'select: false' está en la entidad, SQL todavía puede USAR la columna
       // para hacer cálculos matemáticos (como la distancia <=>) en el motor de BD.
       // Aquí pedimos que nos devuelva la 'distance', pero NO el 'product.embedding'.
-      
+
       queryBuilder
         .addSelect('product.embedding <=> (:searchEmbedding)::vector', 'distance')
         .andWhere('product.embedding IS NOT NULL')
         .setParameter('searchEmbedding', embeddingString)
-        .orderBy('distance', 'ASC'); 
+        .orderBy('distance', 'ASC');
 
     } else {
       // ORDENAMIENTO ESTÁNDAR
-      const allowedOrderFields = ['name', 'createdAt', 'updatedAt', 'individualPrice'];
-      const safeOrderBy = allowedOrderFields.includes(orderBy) ? orderBy : 'name';
       const safeOrderDirection = orderDirection === 'DESC' ? 'DESC' : 'ASC';
 
       queryBuilder.orderBy(`product.${safeOrderBy}`, safeOrderDirection);
@@ -163,7 +193,7 @@ async findAll(query: ProductQueryDto) {
     // const data = items; 
 
     const totalPages = Math.ceil(totalResults / limit);
-    
+
     return {
       data: items, // Retornamos items limpios (sin vector pesado)
       meta: {
@@ -177,28 +207,29 @@ async findAll(query: ProductQueryDto) {
     };
   }
 
-  
+
   async update(id: number, updateProductDto: UpdateProductDto) {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: ['baseProducts'],
+      relations: ['baseProduct'],
     });
 
     if (!product) {
       throw new NotFoundException(`Product with id ${id} not found`);
     }
 
-    const { baseProductIds, ...rest } = updateProductDto as any;
+    const { baseProductId, ...rest } = updateProductDto as any;
 
     Object.assign(product, rest);
 
-    if (baseProductIds) {
-      if (baseProductIds.length > 0) {
-        const baseProducts = await this.baseProductRepository.findBy({ id: In(baseProductIds) });
-        product.baseProducts = baseProducts;
-      } else {
-        product.baseProducts = [];
+    if (baseProductId) {
+      const baseProduct = await this.baseProductRepository.findOne({
+        where: { id: baseProductId }
+      });
+      if (!baseProduct) {
+        throw new NotFoundException('BaseProduct no encontrado');
       }
+      product.baseProductId = baseProductId;
     }
 
     const tags = product.tags || [];
@@ -206,11 +237,11 @@ async findAll(query: ProductQueryDto) {
     const designColors = product.designColors || [];
 
     const embedding = await this.generateEmbedding(`
-      Nombre: ${product.name}. 
+      Nombre: ${product.name}.
       Temas: ${product.themes.join(' ')}.
       Estilos: ${product.styles.join(' ')}.
-      Tags: ${tags.join(' ')} 
-      Colores Disponibles: ${availableColors.join(' ')}. 
+      Tags: ${tags.join(' ')}
+      Colores Disponibles: ${availableColors.join(' ')}.
       Colores del Diseño: ${designColors.join(' ')}.`);
     product.embedding = embedding;
 
@@ -246,9 +277,9 @@ async findAll(query: ProductQueryDto) {
   async findOne(id: number) {
     return this.productRepository.findOne({
       where: { id },
-      relations: ['baseProducts'],
+      relations: ['baseProduct'],
     });
-  } 
+  }
 
- 
+
 }

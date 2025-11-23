@@ -39,15 +39,6 @@ export class BaseProduct {
     @Column({ unique: true, length: 4 })
     sku: string;
 
-    @Column('text', { array: true, default: [] })
-    colors: string[];
-
-    @Column('text', { array: true, default: [] })
-    sizes: string[];
-
-    @Column({ type: 'jsonb', default: [] })
-    sizeGroups: { label: string; sizes: string[] }[];
-
     @Column({ type: 'jsonb', default: [] })
     specifications: { key: string; value: string }[];
 
@@ -57,8 +48,16 @@ export class BaseProduct {
     @Column({ type: 'decimal', precision: 10, scale: 2, transformer: NumericTransformer })
     cost: number;
 
-    @Column({ type: 'decimal', precision: 10, scale: 2, transformer: NumericTransformer })
-    suggestedPrice: number;
+    @Column({ type: 'jsonb', default: [] })
+    variants: {
+        id: string;
+        label: string;
+        price: number;
+        description?: string;
+        specifications?: { key: string; value: string }[];
+        colors: string[];
+        sizeGroups: { label: string; sizes: string[] }[];
+    }[];
 
     @OneToMany(() => ProductCategory, pc => pc.product)
     productCategories: ProductCategory[];

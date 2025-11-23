@@ -5,8 +5,10 @@ import { Product } from '../entities/product.entity';
 import { DesignPurchase } from '../entities/design-purchase.entity';
 import { DesignDownload } from '../entities/design-download.entity';
 import { CreditsService } from 'src/credits/credits.service';
+import { CreditType } from 'src/credits/entities/credit-transaction.entity';
 import { StorageService } from 'src/storage/storage.service';
 import { Request } from 'express';
+import { DESIGN_DOWNLOAD_COSTS } from '../constants/design-costs';
 
 @Injectable()
 export class DesignsService {
@@ -19,44 +21,74 @@ export class DesignsService {
         private dataSource: DataSource,
     ) { }
 
-    // --- 1. COMPRAR DISEÑO (SOLO CRÉDITOS) ---
-    async purchaseDesign(userId: string, productId: number) {
+    // --- 1. COMPRAR DISEÑO (COSTOS FIJOS EN CRÉDITOS) ---
+    async purchaseDesign(userId: string, productId: number, purchaseType: string) {
         // A. Validaciones
         const product = await this.productRepo.findOneBy({ id: productId });
         if (!product) throw new NotFoundException('Diseño no encontrado');
 
-        if (!product.designPrice || Number(product.designPrice) <= 0) {
-            throw new BadRequestException('Este diseño no está a la venta digitalmente');
-        }
+        // Obtener costo fijo según tipo
+        const credits = DESIGN_DOWNLOAD_COSTS[purchaseType];
+        if (!credits) throw new BadRequestException('Tipo de compra inválido');
 
-        // Verificar si ya lo compró
-        const alreadyOwned = await this.purchaseRepo.findOne({
-            where: { userId, productId }
-        });
-        if (alreadyOwned) throw new BadRequestException('Ya tienes acceso a este diseño');
+        const downloadsToAdd = purchaseType === 'UNLIMITED' ? -1 :
+            (purchaseType === 'FIVE' ? 5 : 1);
 
         // B. Transacción ACID (Cobro + Entrega)
         return await this.dataSource.transaction(async (manager) => {
-            // 1. Cobrar Créditos (Bloqueo pesimista incluido en CreditsService)
+            // 1. Cobrar Créditos de Diseño
             await this.creditsService.chargeUser(
                 userId,
-                Number(product.designPrice),
-                `Compra de Diseño: ${product.name} (SKU ${product.sku})`,
+                credits,
+                CreditType.DESIGN, // Usar créditos de diseño
+                `Compra de Diseño (${purchaseType}): ${product.name}`,
                 manager
             );
 
-            // 2. Registrar Propiedad (Licencia)
-            const purchase = manager.create(DesignPurchase, {
-                userId,
-                productId,
-                pricePaid: Number(product.designPrice)
+            // 2. Buscar si ya existe compra
+            let purchase = await manager.findOne(DesignPurchase, {
+                where: { userId, productId }
             });
+
+            if (purchase) {
+                // Actualizar existente
+                if (purchase.purchaseType === 'UNLIMITED') {
+                    // Ya es ilimitado, no hacer nada adicional
+                } else {
+                    if (purchaseType === 'UNLIMITED') {
+                        purchase.purchaseType = 'UNLIMITED';
+                        purchase.downloadsRemaining = null;
+                    } else {
+                        // Sumar descargas
+                        const current = purchase.downloadsRemaining || 0;
+                        purchase.downloadsRemaining = current + downloadsToAdd;
+                        purchase.purchaseType = purchaseType;
+                    }
+                }
+                purchase.pricePaid = credits; // Guardamos créditos pagados
+                purchase.purchasedAt = new Date();
+            } else {
+                // Crear nueva
+                purchase = manager.create(DesignPurchase, {
+                    userId,
+                    productId,
+                    pricePaid: credits,
+                    purchaseType,
+                    downloadsRemaining: downloadsToAdd === -1 ? null : downloadsToAdd
+                });
+            }
+
             await manager.save(purchase);
 
             // 3. Incrementar Contador de Ventas
             await manager.increment(Product, { id: productId }, 'designSoldCount', 1);
 
-            return { message: 'Compra exitosa. Ya puedes descargar tu diseño.', purchaseId: purchase.id };
+            return {
+                message: 'Compra exitosa.',
+                purchaseId: purchase.id,
+                downloadsRemaining: purchase.downloadsRemaining === null ? 'Unlimited' : purchase.downloadsRemaining,
+                creditsCharged: credits
+            };
         });
     }
 
@@ -71,28 +103,36 @@ export class DesignsService {
         }
 
         if (!purchase) {
-            // Opcional: Si es el dueño/creador o Admin, permitir descarga sin compra
-            // if (!isAdmin) 
             throw new ForbiddenException('Debes comprar este diseño para descargarlo');
         }
 
-        if (!product.fileUrls || product.fileUrls.length === 0) {
-            throw new NotFoundException('No hay archivos fuente cargados para este diseño');
+        if (!product.files) {
+            throw new NotFoundException('No hay archivo fuente cargado para este diseño');
         }
 
-        // B. Generar URLs firmadas (Vitalicio acceso, pero URL temporal de 15min)
-        // Asumimos que fileUrls tiene las keys de S3/GCP
-        const urls = await Promise.all(product.fileUrls.map(async (fileKey) => {
-            return await this.storageService.generateV4DownloadSignedUrl(fileKey, 5); // Tu método existente
-        }));
+        // Validar descargas restantes
+        if (purchase.downloadsRemaining !== null) {
+            if (purchase.downloadsRemaining <= 0) {
+                throw new ForbiddenException('Has agotado tus descargas para este diseño. Por favor compra más.');
+            }
+            // Decrementar (si no es ilimitado)
+            purchase.downloadsRemaining -= 1;
+            await this.purchaseRepo.save(purchase);
+        }
+
+        // B. Generar URL firmada para el archivo
+        const downloadUrl = await this.storageService.generateV4DownloadSignedUrl(product.files, 5);
 
         // C. Registrar Descarga para Analytics (Sin esperar)
-        this.registerDownload(purchase.id, userId, productId, product.fileUrls, request);
+        this.registerDownload(purchase.id, userId, productId, [product.files], request);
 
         // D. Incrementar Contador General (Sin esperar)
         this.productRepo.increment({ id: productId }, 'designDownloadCount', 1);
 
-        return { files: urls };
+        return {
+            file: downloadUrl,
+            downloadsRemaining: purchase.downloadsRemaining === null ? 'Unlimited' : purchase.downloadsRemaining
+        };
     }
 
     // --- MÉTODO PRIVADO: Registrar Descarga ---

@@ -4,17 +4,13 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { ApiTags } from '@nestjs/swagger';
-import { PriceGroupService } from './services/price-group.service';
-import { CreatePriceGroupDto } from './dto/create-price-group.dto';
 
-
-
+@ApiTags('Diseños de Producto')
 @Controller('products')
 export class ProductsController {
   constructor(
-      private readonly productsService: ProductsService,
-      private readonly priceGroupService: PriceGroupService
-  ) {}
+    private readonly productsService: ProductsService
+  ) { }
 
   @Post()
   create(@Body() createProductDto: CreateProductDto) {

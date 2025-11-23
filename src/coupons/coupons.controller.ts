@@ -8,12 +8,12 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { RedeemCouponDto } from './dto/redeem-coupon.dto';
 
-@ApiTags('Cupones y Descuentos')
+@ApiTags('Cupones de Descuento y Recarga')
 @ApiBearerAuth()
 @Controller('coupons')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class CouponsController {
-  constructor(private readonly couponsService: CouponsService) {}
+  constructor(private readonly couponsService: CouponsService) { }
 
   // 1. CREAR (ADMIN)
   @Post()
@@ -38,14 +38,14 @@ export class CouponsController {
   @Roles(Role.CLIENT)
   @ApiOperation({ summary: 'Verificar cupón antes de comprar' })
   async checkCoupon(
-    @Query('code') code: string, 
+    @Query('code') code: string,
     @Query('amount') amount: number, // Monto actual del carrito
     @Request() req
   ) {
     const coupon = await this.couponsService.validateCoupon(code, req.user.id, amount);
-    return { 
-      valid: true, 
-      type: coupon.type, 
+    return {
+      valid: true,
+      type: coupon.type,
       value: coupon.value,
       code: coupon.code,
       minPurchase: coupon.minPurchase

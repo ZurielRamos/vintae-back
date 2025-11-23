@@ -3,8 +3,8 @@ import { Cart } from './cart.entity';
 import { Product } from '../../products/entities/product.entity';
 
 @Entity('cart_items')
-// REGLA DE UNICIDAD: Un item es único por Carrito + Producto + Color + Talla
-@Unique(['cartId', 'productId', 'selectedColor', 'selectedSize']) 
+// REGLA DE UNICIDAD: Un item es único por Carrito + Producto + Color + Talla + Variante
+@Unique(['cartId', 'productId', 'selectedColor', 'selectedSize', 'variantId'])
 export class CartItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -31,6 +31,9 @@ export class CartItem {
 
   @Column({ name: 'selected_size' })
   selectedSize: string;
+
+  @Column({ name: 'variant_id', type: 'uuid' })
+  variantId: string;
 
   @Column({ type: 'int', default: 1 })
   quantity: number;

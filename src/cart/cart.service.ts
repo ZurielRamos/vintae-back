@@ -12,7 +12,7 @@ export class CartService {
     @InjectRepository(Cart) private cartRepo: Repository<Cart>,
     @InjectRepository(CartItem) private cartItemRepo: Repository<CartItem>,
     @InjectRepository(Product) private productRepo: Repository<Product>,
-  ) {}
+  ) { }
 
   // --- OBTENER CARRITO (GET) ---
   async getCart(userId: string) {
@@ -32,18 +32,24 @@ export class CartService {
 
     // 3. Calcular totales y formatear respuesta
     const itemsFormatted = cart.items.map(item => {
-        const price = Number(item.product.baseProducts?.[0]?.suggestedPrice || 0);
-        return {
-            id: item.id, // ID del item en el carrito
-            productId: item.productId,
-            productName: item.product.name,
-            selectedColor: item.selectedColor,
-            selectedSize: item.selectedSize,
-            price: price,
-            quantity: item.quantity,
-            total: price * item.quantity,
-            image: item.product.imageUrls?.[0] || null
-        };
+      // Buscar la variante seleccionada en el BaseProduct
+      const baseProduct = item.product.baseProduct;
+      const selectedVariant = baseProduct?.variants?.find(v => v.id === item.variantId);
+      const price = Number(selectedVariant?.price || 0);
+
+      return {
+        id: item.id, // ID del item en el carrito
+        productId: item.productId,
+        productName: item.product.name,
+        selectedColor: item.selectedColor,
+        selectedSize: item.selectedSize,
+        variantId: item.variantId,
+        variantLabel: selectedVariant?.label || 'N/A',
+        price: price,
+        quantity: item.quantity,
+        total: price * item.quantity,
+        image: item.product.imageUrls?.[0] || null
+      };
     });
 
     const subtotal = itemsFormatted.reduce((sum, item) => sum + item.total, 0);
@@ -59,21 +65,51 @@ export class CartService {
 
   // --- AGREGAR AL CARRITO (ADD) ---
   async addToCart(userId: string, dto: AddToCartDto) {
-    // 1. Validar Producto
-    const product = await this.productRepo.findOne({ where: { id: dto.productId } });
+    // 1. Validar Producto y BaseProduct
+    const product = await this.productRepo.findOne({
+      where: { id: dto.productId },
+      relations: ['baseProduct']
+    });
 
     if (!product) throw new NotFoundException('Producto no encontrado');
+    if (!product.baseProduct) {
+      throw new NotFoundException('Este producto no tiene un BaseProduct asociado');
+    }
 
-    // 2. Obtener Carrito (asegurando que existe)
+    // 2. Validar que la variante exista
+    const baseProduct = product.baseProduct;
+    const selectedVariant = baseProduct.variants?.find(v => v.id === dto.variantId);
+
+    if (!selectedVariant) {
+      throw new NotFoundException(`La variante ${dto.variantId} no existe para este producto`);
+    }
+
+    // 3. Validar que el color esté disponible en la variante
+    if (!selectedVariant.colors?.includes(dto.color)) {
+      throw new NotFoundException(
+        `El color "${dto.color}" no está disponible para esta variante. Colores disponibles: ${selectedVariant.colors?.join(', ')}`
+      );
+    }
+
+    // 4. Validar que la talla esté disponible en la variante
+    const allSizes = selectedVariant.sizeGroups?.flatMap(sg => sg.sizes) || [];
+    if (!allSizes.includes(dto.size)) {
+      throw new NotFoundException(
+        `La talla "${dto.size}" no está disponible para esta variante. Tallas disponibles: ${allSizes.join(', ')}`
+      );
+    }
+
+    // 5. Obtener Carrito (asegurando que existe)
     const cartData = await this.getCart(userId);
 
-    // 3. Buscar si ya existe este producto CON ESTE COLOR Y TALLA
+    // 6. Buscar si ya existe este producto CON ESTE COLOR, TALLA Y VARIANTE
     const existingItem = await this.cartItemRepo.findOne({
       where: {
         cartId: cartData.id,
         productId: dto.productId,
         selectedColor: dto.color,
-        selectedSize: dto.size
+        selectedSize: dto.size,
+        variantId: dto.variantId
       }
     });
 
@@ -88,7 +124,8 @@ export class CartService {
         productId: dto.productId,
         quantity: dto.quantity,
         selectedColor: dto.color,
-        selectedSize: dto.size
+        selectedSize: dto.size,
+        variantId: dto.variantId
       });
       await this.cartItemRepo.save(newItem);
     }
@@ -134,35 +171,36 @@ export class CartService {
 
   // --- FUSIÓN (INVITADO -> USUARIO) ---
   async mergeCarts(guestUserId: string, targetUserId: string) {
-    const guestCart = await this.cartRepo.findOne({ 
-      where: { userId: guestUserId }, 
-      relations: ['items'] 
+    const guestCart = await this.cartRepo.findOne({
+      where: { userId: guestUserId },
+      relations: ['items']
     });
-    
+
     if (!guestCart || guestCart.items.length === 0) return;
 
     // Aseguramos que el destino tenga carrito
     const targetCartRes = await this.getCart(targetUserId);
-    
-    for (const item of guestCart.items) {
-       // Verificamos si existe esa combinación exacta en el destino
-       const existing = await this.cartItemRepo.findOne({
-           where: { 
-               cartId: targetCartRes.id, 
-               productId: item.productId,
-               selectedColor: item.selectedColor,
-               selectedSize: item.selectedSize
-           }
-       });
 
-       if (existing) {
-           existing.quantity += item.quantity;
-           await this.cartItemRepo.save(existing);
-           await this.cartItemRepo.delete(item.id);
-       } else {
-           // Movemos el item
-           await this.cartItemRepo.update(item.id, { cartId: targetCartRes.id });
-       }
+    for (const item of guestCart.items) {
+      // Verificamos si existe esa combinación exacta en el destino
+      const existing = await this.cartItemRepo.findOne({
+        where: {
+          cartId: targetCartRes.id,
+          productId: item.productId,
+          selectedColor: item.selectedColor,
+          selectedSize: item.selectedSize,
+          variantId: item.variantId
+        }
+      });
+
+      if (existing) {
+        existing.quantity += item.quantity;
+        await this.cartItemRepo.save(existing);
+        await this.cartItemRepo.delete(item.id);
+      } else {
+        // Movemos el item
+        await this.cartItemRepo.update(item.id, { cartId: targetCartRes.id });
+      }
     }
 
     await this.cartRepo.delete(guestCart.id);
@@ -170,5 +208,5 @@ export class CartService {
 
 
 
-  
+
 }

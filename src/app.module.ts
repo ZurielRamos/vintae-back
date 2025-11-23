@@ -20,6 +20,7 @@ import { WishlistModule } from './wishlist/wishlist.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { MailModule } from './mail/mail.module';
+import { PaymentsModule } from './payments/payments.module';
 
 // OID 1700 es para el tipo NUMERIC/DECIMAL.
 pg.types.setTypeParser(1700, (value: string) => {
@@ -52,10 +53,11 @@ pg.types.setTypeParser(1700, (value: string) => {
 
           // 🛑 ¡ATENCIÓN! Usamos las variables separadas y NO la 'url' para asegurar el control.
           host: configService.get<string>('DB_HOST'),
-          port: configService.get<number>('DB_PORT'), // Puerto 6543 (pgbouncer)
+          //port: configService.get<number>('DB_PORT'), // Puerto 6543 (pgbouncer)
           username: configService.get<string>('DB_USERNAME'),
           password: configService.get<string>('DB_PASSWORD'),
           database: configService.get<string>('DB_DATABASE'),
+
 
           // Descubre entidades automáticamente
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
@@ -63,11 +65,11 @@ pg.types.setTypeParser(1700, (value: string) => {
           // ¡IMPORTANTE! Solo usar en desarrollo.
           synchronize: true,
 
-          // Configuración SSL (Necesario para Supabase en producción)
-          ssl:
-            process.env.NODE_ENV === 'production'
-              ? { rejectUnauthorized: false }
-              : false,
+          // Configuración SSL (Necesario para Neon/Supabase)
+          ssl: configService.get<string>('DB_HOST')?.includes('neon.tech') ||
+            configService.get<string>('DB_HOST')?.includes('supabase.com')
+            ? { rejectUnauthorized: false }
+            : false,
 
           // Estrategia Serverless: Pool de Conexiones
           extra: {
@@ -91,6 +93,7 @@ pg.types.setTypeParser(1700, (value: string) => {
     CartModule,
     OrdersModule,
     MailModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

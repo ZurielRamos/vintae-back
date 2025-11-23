@@ -15,9 +15,9 @@ export class UsersService {
         private usersRepository: Repository<User>,
         private wishlistService: WishlistService,
         private cartService: CartService
-    ) {}    
+    ) { }
 
-    async create( createUserDto: CreateUserDto ) {
+    async create(createUserDto: CreateUserDto) {
         const existingUser = await this.usersRepository.findOneBy({ email: createUserDto.email });
         if (existingUser) {
             throw new ConflictException('User already exists');
@@ -29,12 +29,12 @@ export class UsersService {
 
     async createWithPhone(phoneNumber: string) {
         const newUser = this.usersRepository.create({
-        phoneNumber: phoneNumber,
-        role: Role.CLIENT,
-        name: phoneNumber, // Nombre temporal ej: User 5678
-        // email y password se guardan como null automáticamente
+            phoneNumber: phoneNumber,
+            role: Role.CLIENT,
+            name: phoneNumber, // Nombre temporal ej: User 5678
+            // email y password se guardan como null automáticamente
         });
-        
+
         return await this.usersRepository.save(newUser);
     }
 
@@ -47,21 +47,21 @@ export class UsersService {
     }
 
     async findOneByEmail(email: string) {
-        return this.usersRepository.findOne({ where: { email }, select: ['id', 'name', 'email', 'role', 'credits', 'password'] });
+        return this.usersRepository.findOne({ where: { email }, select: ['id', 'name', 'email', 'role', 'designCredits', 'purchaseCredits', 'password'] });
     }
 
     async findOneByPhone(phoneNumber: string) {
-        return this.usersRepository.findOne({ 
+        return this.usersRepository.findOne({
             where: { phoneNumber },
             // Necesitamos otpSessionInfo para verificar, así que lo seleccionamos explícitamente
-            select: ['id', 'phoneNumber', 'role', 'otpSessionInfo', 'credits', 'email'] 
+            select: ['id', 'phoneNumber', 'role', 'otpSessionInfo', 'designCredits', 'purchaseCredits', 'email']
         });
     }
 
     async updateOtpSession(userId: string, sessionInfo: string | null) {
-        return this.usersRepository.update(userId, { 
-        // El operador || null asegura que si sessionInfo es undefined, se envíe null
-        otpSessionInfo: (sessionInfo || null) as any 
+        return this.usersRepository.update(userId, {
+            // El operador || null asegura que si sessionInfo es undefined, se envíe null
+            otpSessionInfo: (sessionInfo || null) as any
         });
     }
 
@@ -77,15 +77,15 @@ export class UsersService {
     async mergeGuestIntoUser(guestId: string, targetUserId: string) {
         console.log('entrando')
         const guestUser = await this.findOneById(guestId);
-        
+
         // Si el invitado no existe o es el mismo usuario, no hacemos nada
         if (!guestUser || guestId === targetUserId) return;
 
         if (guestUser.email || guestUser.phoneNumber) {
             console.warn(`Intento de fusión bloqueado: El usuario origen es una cuenta registrada.`);
-            return; 
+            return;
         }
-        
+
         // --- AQUÍ IRÁ TU LÓGICA DE CARRITO MÁS ADELANTE ---
         // Ejemplo conceptual:
         await this.wishlistService.mergeWishlist(guestId, targetUserId);
@@ -93,12 +93,12 @@ export class UsersService {
         // await this.cartRepository.update({ userId: guestId }, { userId: targetUserId });
         // await this.favoritesRepository.update({ userId: guestId }, { userId: targetUserId });
         // ---------------------------------------------------
-        
+
         // Finalmente, eliminamos al usuario invitado para no dejar basura en la DB
         // Usamos delete para borrarlo físicamente
         console.log('eliminando')
         await this.usersRepository.delete(guestId);
-        
+
         console.log(`Invitado ${guestId} fusionado exitosamente con Usuario ${targetUserId}`);
     }
 

@@ -25,6 +25,12 @@ export class DesignPurchase {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   pricePaid: number; // Guardamos cuánto pagó (por si el precio cambia luego)
 
+  @Column({ nullable: true })
+  purchaseType: string; // 'ONE', 'FIVE', 'UNLIMITED'
+
+  @Column({ type: 'int', nullable: true })
+  downloadsRemaining: number | null; // Null = Ilimitado
+
   @CreateDateColumn()
   purchasedAt: Date;
 }

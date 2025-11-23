@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CouponsService } from './coupons.service';
 import { CouponsController } from './coupons.controller';
@@ -9,10 +9,10 @@ import { CreditsModule } from '../credits/credits.module'; // <--- IMPORTANTE
 @Module({
   imports: [
     TypeOrmModule.forFeature([Coupon, CouponUsage]),
-    CreditsModule, // Importamos para usar CreditsService
+    forwardRef(() => CreditsModule), // Importamos para usar CreditsService
   ],
   controllers: [CouponsController],
   providers: [CouponsService],
   exports: [CouponsService], // Exportamos para que OrdersModule pueda usarlo
 })
-export class CouponsModule {}
+export class CouponsModule { }

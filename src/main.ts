@@ -21,19 +21,33 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://vintae.vercel.app', 'https://vesster.store', 'https://adm.vesster.store'], 
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://vintae.vercel.app', 'https://vesster.store', 'https://adm.vesster.store'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 
   // --- CONFIGURACIÓN SWAGGER CDN ---
   const config = new DocumentBuilder()
-    .setTitle('Design API')
+    .setTitle('Sublipedia API')
     .setDescription('API para gestionar productos y diseños.')
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('Auntenticación', 'Endpoints de autenticación y seguridad')
+    .addTag('Categorias Productos', 'Endpoints de categorías de productos')
+    .addTag('Productos Base', 'Endpoints de productos base')
+    .addTag('Diseños de Producto', 'Endpoints de diseños de productos')
+    .addTag('Cupones de Descuento y Recarga', 'Endpoints de cupones de descuento y recarga')
+    .addTag('Billetera y Créditos', 'Endpoints para la gestión de billetera y créditos')
+    .addTag('Diseños Digitales', 'Endpoints para la gestión de diseños digitales')
+    .addTag('Lista de Deseos (Favoritos)', 'Endpoints para la gestión de lista de deseos')
+    .addTag('Carrito de Compras', 'Endpoints para la gestión de carrito de compras')
+    .addTag('Almacenamiento de archivos', 'Endpoints para la gestión de archivos')
+    .addTag('Pedidos (Checkout)', 'Endpoints para la gestión de pedidos')
+    .addTag('Pagos', 'Endpoints para la gestión de pagos')
+    .addTag('AI', 'Endpoints para la gestión de IA')
+    .addTag('Test', 'Endpoints para pruebas')
     .build();
-    
+
   const document = SwaggerModule.createDocument(app, config);
 
   // 2. Definimos las opciones para usar CDN externa (unpkg)
@@ -45,6 +59,8 @@ async function bootstrap() {
     ],
     swaggerOptions: {
       persistAuthorization: true,
+      docExpansion: 'none',
+      defaultModelsExpandDepth: -1,
     },
   };
 

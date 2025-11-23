@@ -5,7 +5,7 @@ import { CreateBaseProductDto } from './dto/create-base-product.dto';
 import { UpdateBaseProductDto } from './dto/update-base-product.dto';
 import { BaseProduct } from './entities/base-products.entity';
 
-@ApiTags('Base Products')
+@ApiTags('Productos Base')
 @Controller('base-products')
 export class BaseProductsController {
   constructor(private readonly baseProductsService: BaseProductsService) { }

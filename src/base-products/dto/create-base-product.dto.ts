@@ -26,6 +26,56 @@ class SpecificationDto {
   value: string;
 }
 
+class VariantDto {
+  @ApiProperty({ example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', required: false, description: 'ID de la variante (generado automáticamente si no se provee)' })
+  @IsString()
+  @IsOptional()
+  id?: string;
+
+  @ApiProperty({ example: 'Talla M - Premium', description: 'Nombre de la variante' })
+  @IsString()
+  @IsNotEmpty()
+  label: string;
+
+  @ApiProperty({ example: 35000, description: 'Precio de esta variante' })
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @ApiProperty({ example: 'Camiseta talla M con acabado premium', required: false })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({
+    type: [SpecificationDto],
+    required: false,
+    description: 'Especificaciones específicas de esta variante',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SpecificationDto)
+  specifications?: SpecificationDto[];
+
+  @ApiProperty({
+    example: ['Blanco', 'Negro', 'Azul'],
+    description: 'Colores disponibles para esta variante',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  colors: string[];
+
+  @ApiProperty({
+    type: [SizeGroupDto],
+    description: 'Grupos de tallas para esta variante',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SizeGroupDto)
+  sizeGroups: SizeGroupDto[];
+}
+
 export class CreateBaseProductDto {
 
   @ApiProperty({ example: 'Base T-Shirt' })
@@ -44,46 +94,15 @@ export class CreateBaseProductDto {
   productLabel?: string;
 
   @ApiProperty({
-    example: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
-    required: false,
-    description: 'Tamaños disponibles (Legacy)',
-  })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  sizes?: string[];
-
-  @ApiProperty({
-    type: [SizeGroupDto],
-    required: false,
-    description: 'Grupos de tallas (ej: Adulto, Niño)',
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SizeGroupDto)
-  sizeGroups?: SizeGroupDto[];
-
-  @ApiProperty({
     type: [SpecificationDto],
     required: false,
-    description: 'Especificaciones técnicas',
+    description: 'Especificaciones técnicas generales del producto',
   })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SpecificationDto)
   specifications?: SpecificationDto[];
-
-  @ApiProperty({
-    example: ['Blanco', 'Negro', 'Azul', 'Verde', 'Amarillo', 'Rojo'],
-    required: false,
-    description: 'Colores disponibles',
-  })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  colors?: string[];
 
   @ApiProperty({
     example: [],
@@ -95,15 +114,42 @@ export class CreateBaseProductDto {
   @IsString({ each: true })
   imageUrls?: string[];
 
-  @ApiProperty({ example: 30000 })
-  @IsNumber()
-  @Min(0)
-  suggestedPrice: number;
-
   @ApiProperty({ example: 10000 })
   @IsNumber()
   @Min(0)
   cost: number;
+
+  @ApiProperty({
+    type: [VariantDto],
+    description: 'Lista de variantes del producto (al menos 1 requerida)',
+    example: [
+      {
+        label: 'Algodón Premium',
+        price: 35000,
+        description: 'Camiseta con acabado premium',
+        colors: ['Blanco', 'Negro', 'Azul Marino'],
+        sizeGroups: [
+          { label: 'Adulto', sizes: ['S', 'M', 'L', 'XL'] },
+          { label: 'Niño', sizes: ['6', '8', '10', '12'] }
+        ],
+        specifications: [{ key: 'Material', value: 'Algodón Pima' }]
+      },
+      {
+        label: 'Algodón Estándar',
+        price: 25000,
+        description: 'Camiseta con acabado estándar',
+        colors: ['Blanco', 'Negro', 'Gris'],
+        sizeGroups: [
+          { label: 'Adulto', sizes: ['S', 'M', 'L'] }
+        ]
+      }
+    ]
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariantDto)
+  @IsNotEmpty({ message: 'Debe incluir al menos 1 variante' })
+  variants: VariantDto[];
 
   @ApiProperty({
     example: ['uuid-category-1', 'uuid-category-2'],

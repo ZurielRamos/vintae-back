@@ -38,6 +38,12 @@ export class OrderItem {
   @Column()
   selectedSize: string;
 
+  @Column({ type: 'uuid' })
+  variantId: string;
+
+  @Column()
+  variantLabel: string;
+
   @Column({ nullable: true })
   imageUrl: string;
 }

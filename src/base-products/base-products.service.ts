@@ -22,8 +22,15 @@ export class BaseProductsService {
 		// Generar SKU único
 		const sku = await this.generateSku();
 
+		// Generar UUIDs para variantes que no tengan ID
+		const variantsWithIds = baseData.variants?.map(variant => ({
+			...variant,
+			id: variant.id || this.generateUuid(),
+		})) || [];
+
 		const baseProduct = this.baseProductRepository.create({
 			...baseData,
+			variants: variantsWithIds,
 			sku,
 		});
 		const savedProduct = await this.baseProductRepository.save(baseProduct);
@@ -75,6 +82,17 @@ export class BaseProductsService {
 		return sku;
 	}
 
+	/**
+	 * Genera un UUID v4 para las variantes
+	 */
+	private generateUuid(): string {
+		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+			const r = (Math.random() * 16) | 0;
+			const v = c === 'x' ? r : (r & 0x3) | 0x8;
+			return v.toString(16);
+		});
+	}
+
 	async update(id: string, dto: UpdateBaseProductDto): Promise<BaseProduct> {
 		const baseProduct = await this.baseProductRepository.findOne({ where: { id } });
 		if (!baseProduct) {
@@ -82,6 +100,15 @@ export class BaseProductsService {
 		}
 
 		const { categoryIds, primaryCategoryId, ...baseData } = dto;
+
+		// Si se están actualizando variantes, asegurar que tengan IDs
+		if (baseData.variants) {
+			baseData.variants = baseData.variants.map(variant => ({
+				...variant,
+				id: variant.id || this.generateUuid(),
+			}));
+		}
+
 		Object.assign(baseProduct, baseData);
 		const savedProduct = await this.baseProductRepository.save(baseProduct);
 

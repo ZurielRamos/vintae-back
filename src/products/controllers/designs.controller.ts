@@ -1,10 +1,11 @@
-import { Controller, Post, Get, Param, UseGuards, Request, HttpCode, HttpStatus, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Param, UseGuards, Request, HttpCode, HttpStatus, ParseIntPipe, Body } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from 'src/common/enums/role.enum';
 import { DesignsService } from '../services/design.service';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { PurchaseDesignDto } from '../dto/purchase-design.dto';
 
 @ApiTags('Diseños Digitales')
 @Controller('designs')
@@ -18,8 +19,12 @@ export class DesignsController {
     @Roles(Role.CLIENT)
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Comprar diseño con Créditos' })
-    purchase(@Request() req, @Param('id', ParseIntPipe) productId: number) {
-        return this.designsService.purchaseDesign(req.user.id, productId);
+    purchase(
+        @Request() req,
+        @Param('id', ParseIntPipe) productId: number,
+        @Body() purchaseDto: PurchaseDesignDto
+    ) {
+        return this.designsService.purchaseDesign(req.user.id, productId, purchaseDto.purchaseType);
     }
 
     // DESCARGAR

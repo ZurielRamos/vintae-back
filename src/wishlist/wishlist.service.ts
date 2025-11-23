@@ -44,15 +44,15 @@ export class WishlistService {
   async getMyWishlist(userId: string) {
     return this.wishlistRepo.find({
       where: { userId },
-      relations: ['product', 'product.baseProducts'],
+      relations: ['product', 'product.baseProduct'],
       select: {
         id: true,
         product: {
           id: true,
           name: true,
           imageUrls: true,
-          baseProducts: {
-            suggestedPrice: true
+          baseProduct: {
+            variants: true,
           }
         }
       },

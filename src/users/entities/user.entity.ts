@@ -24,8 +24,11 @@ export class User {
     @Column({ type: 'enum', enum: Role, default: Role.CLIENT })
     role: Role;
 
-    @Column({ type: 'int', default: 0 })
-    credits: number;
+    @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+    designCredits: number; // Créditos para comprar descargas de diseños
+
+    @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+    purchaseCredits: number; // Créditos para comprar productos físicos
 
     @Column({ type: 'text', nullable: true, select: false })
     otpSessionInfo: string;

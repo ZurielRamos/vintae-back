@@ -1,13 +1,14 @@
 // ... imports iguales al anterior
-import { Controller, ParseFilePipeBuilder, Post, Body,  UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, ParseFilePipeBuilder, Post, Body, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { HttpStatus } from '@nestjs/common';
 import { GenAIService, ImageAnalysisResponse } from './ai.service';
-import { ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('AI')
 @Controller('gen-ai')
 export class GenAIController {
-  constructor(private readonly genAIService: GenAIService) {}
+  constructor(private readonly genAIService: GenAIService) { }
 
   @Post('analyze') // Cambiamos el nombre del endpoint a algo más acorde
   @ApiConsumes('multipart/form-data')
