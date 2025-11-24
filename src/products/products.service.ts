@@ -273,7 +273,6 @@ export class ProductsService {
     return rest;
   }
 
-
   async findOne(id: number) {
     return this.productRepository.findOne({
       where: { id },
@@ -281,5 +280,56 @@ export class ProductsService {
     });
   }
 
+  /**
+   * Obtener producto con información de compra de diseño del usuario
+   */
+  async findOneWithDesignPurchase(productId: number, userId?: string) {
+    const product = await this.productRepository.findOne({
+      where: { id: productId },
+      relations: ['baseProduct'],
+    });
 
+
+    if (!product) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    // Si no hay usuario, retornar solo el producto
+    if (!userId) {
+      return {
+        ...this.sanitizeProduct(product),
+        designPurchase: null,
+      };
+    }
+
+    // Buscar si el usuario ya compró este diseño
+    const designPurchaseRepo = this.productRepository.manager.getRepository('DesignPurchase');
+    const designPurchase = await designPurchaseRepo
+      .createQueryBuilder('dp')
+      .where('dp.userId = :userId', { userId })
+      .andWhere('dp.productId = :productId', { productId })
+      .getOne();
+
+    return {
+      ...this.sanitizeProduct(product),
+      designPurchase: designPurchase
+        ? {
+          purchased: true,
+          purchaseType: designPurchase.purchaseType, // 'ONE', 'FIVE', 'UNLIMITED'
+          downloadsRemaining:
+            designPurchase.downloadsRemaining === null
+              ? 'unlimited'
+              : designPurchase.downloadsRemaining,
+          pricePaid: Number(designPurchase.pricePaid),
+          purchasedAt: designPurchase.purchasedAt,
+        }
+        : {
+          purchased: false,
+          purchaseType: null,
+          downloadsRemaining: 0,
+          pricePaid: null,
+          purchasedAt: null,
+        },
+    };
+  }
 }

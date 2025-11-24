@@ -111,7 +111,7 @@ export class AuthService {
     const balances = await this.creditsService.getBalances(user.id);
 
     // Generar JWT
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = { sub: user.id, name: user.name, email: user.email, role: user.role };
 
     return {
       access_token: this.jwtService.sign(payload),
@@ -189,7 +189,7 @@ export class AuthService {
     }
 
     // Generar Token
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = { sub: user.id, name: user.name, email: user.email, role: user.role };
 
     // Obtener balances
     const balances = await this.creditsService.getBalances(user.id);
@@ -296,8 +296,7 @@ export class AuthService {
       // Nota: Si el merge funcionó, el phoneUser ahora tiene el carrito del invitado
       const payload = {
         sub: phoneUser.id,
-        email: phoneUser.phoneNumber, // Usamos el teléfono como identificador principal en payload
-        phoneNumber: phoneUser.phoneNumber,
+        email: phoneUser.phoneNumber,
         role: phoneUser.role,
         name: phoneUser.name // Asegúrate que tu entidad use 'fullName' o 'name' consistentemente
       };
@@ -342,7 +341,6 @@ export class AuthService {
     const payload = {
       sub: guestUser.id,
       email: guestUser.phoneNumber,
-      phoneNumber: guestUser.phoneNumber,
       role: guestUser.role,
       isGuest: true // Flag útil para el frontend
     };
@@ -430,14 +428,14 @@ export class AuthService {
     // 3. Generar Payload y Token
     const payload = {
       sub: phoneUser.id,
-      email: phoneUser.phoneNumber, // Usamos el teléfono como identificador principal si no hay email
-      phoneNumber: phoneUser.phoneNumber,
+      email: phoneUser.phoneNumber,
       role: phoneUser.role,
       name: phoneUser.name
     };
 
     // Obtener balances
     const balances = await this.creditsService.getBalances(phoneUser.id);
+
 
     return {
       access_token: this.jwtService.sign(payload),

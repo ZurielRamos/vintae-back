@@ -21,7 +21,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://vintae.vercel.app', 'https://vesster.store', 'https://adm.vesster.store'],
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'https://vintae.vercel.app', 'https://vesster.store', 'https://adm.vesster.store', 'http://localhost:4321'],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });

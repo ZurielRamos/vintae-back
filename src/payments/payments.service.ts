@@ -18,7 +18,13 @@ export class PaymentsService {
             throw new Error('WOMPI_INTEGRITY_SECRET no está configurado');
         }
 
-        const chain = `${reference}${amountInCents}${currency}${secret}`;
+        // Convertir explícitamente amountInCents a string
+        const amountStr = String(amountInCents);
+
+        // Concatenar SIN separadores: reference + amountInCents + currency + secret
+        const chain = `${reference}${amountStr}${currency}${secret}`;
+
+        // Generar SHA256 en hexadecimal (lowercase)
         const hash = crypto.createHash('sha256').update(chain).digest('hex');
 
         return hash;

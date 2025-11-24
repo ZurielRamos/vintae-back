@@ -37,9 +37,104 @@ export class CreditsService {
     };
   }
 
+  // --- COMPRAR PAQUETE DE CRÉDITOS DE DISEÑO ---
+  async purchaseDesignCreditPackage(userId: string, packageType: string): Promise<WompiPaymentDataDto> {
+    // Paquetes con créditos totales (base + bonus) y precios en COP
+    const DESIGN_CREDIT_PACKAGES = {
+      SMALL: {
+        credits: 20,
+        bonus_credits: 0,
+        total_credits: 20,
+        price: 34900 // COP
+      },
+      MEDIUM: {
+        credits: 50,
+        bonus_credits: 5,
+        total_credits: 55,
+        price: 69900 // COP
+      },
+      LARGE: {
+        credits: 120,
+        bonus_credits: 15,
+        total_credits: 135,
+        price: 99900 // COP
+      }
+    };
+
+    const packageData = DESIGN_CREDIT_PACKAGES[packageType];
+    if (!packageData) {
+      throw new BadRequestException('Paquete inválido');
+    }
+
+    // Referencia especial para paquetes: PACKAGE-{tipo}-{userId}-{timestamp}
+    const reference = `PACKAGE-${packageType}-${userId}-${Date.now()}`;
+    const amountInCents = Math.round(packageData.price * 100);
+    const currency = 'COP';
+
+    const signature = this.paymentsService.generateSignature(reference, amountInCents, currency);
+
+    return {
+      reference,
+      amountInCents,
+      currency,
+      signature,
+      publicKey: process.env.WOMPI_PUB_KEY
+    };
+  }
+
   // --- CONFIRMAR RECARGA (WEBHOOK) ---
   async confirmRecharge(reference: string, transactionId: string, amountInPesos: number) {
-    // Extraer creditType y userId de la referencia: CREDIT-{creditType}-{userId}-{timestamp}
+    // Validar si ya se procesó esta referencia (Idempotencia)
+    const existingTx = await this.dataSource.getRepository(CreditTransaction).findOne({
+      where: { referenceId: reference }
+    });
+
+    if (existingTx) {
+      return { message: 'Transacción ya procesada' };
+    }
+
+    // Determinar si es paquete o recarga normal
+    if (reference.startsWith('PACKAGE-')) {
+      // PACKAGE-{tipo}-{userId}-{timestamp}
+      return this.processPackagePurchase(reference, amountInPesos);
+    } else if (reference.startsWith('CREDIT-')) {
+      // CREDIT-{creditType}-{userId}-{timestamp}
+      return this.processRegularRecharge(reference, amountInPesos);
+    } else {
+      throw new BadRequestException('Referencia inválida');
+    }
+  }
+
+  private async processPackagePurchase(reference: string, amountInPesos: number) {
+    const parts = reference.split('-');
+    if (parts.length < 4) throw new BadRequestException('Referencia de paquete inválida');
+
+    const packageType = parts[1]; // SMALL, MEDIUM, LARGE
+    const timestamp = parts.pop();
+    const userId = parts.slice(2, -1).join('-'); // UUID puede tener guiones
+
+    // Mapear paquete a créditos totales (base + bonus)
+    const PACKAGE_TOTAL_CREDITS = {
+      SMALL: 20,   // 20 + 0 bonus
+      MEDIUM: 55,  // 50 + 5 bonus
+      LARGE: 135   // 120 + 15 bonus
+    };
+
+    const totalCredits = PACKAGE_TOTAL_CREDITS[packageType];
+    if (!totalCredits) throw new BadRequestException('Tipo de paquete inválido');
+
+    // Recargar créditos de diseño (total con bonus incluido)
+    await this.rechargeCredits(
+      userId,
+      totalCredits,
+      CreditType.DESIGN,
+      reference
+    );
+
+    return { message: `Paquete ${packageType} activado: ${totalCredits} créditos de diseño` };
+  }
+
+  private async processRegularRecharge(reference: string, amountInPesos: number) {
     const parts = reference.split('-');
     if (parts.length < 4) throw new BadRequestException('Referencia inválida');
 
@@ -52,15 +147,6 @@ export class CreditsService {
     const creditType = creditTypeStr as CreditType;
     if (!Object.values(CreditType).includes(creditType)) {
       throw new BadRequestException('Tipo de crédito inválido en referencia');
-    }
-
-    // Validar si ya se procesó esta referencia (Idempotencia)
-    const existingTx = await this.dataSource.getRepository(CreditTransaction).findOne({
-      where: { referenceId: reference }
-    });
-
-    if (existingTx) {
-      return { message: 'Transacción ya procesada' };
     }
 
     // Procesar Recarga
