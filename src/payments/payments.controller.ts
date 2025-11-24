@@ -22,16 +22,6 @@ export class PaymentsController {
     async handleWompiWebhook(@Body() event: WompiWebhookDto) {
         this.logger.log(`Webhook recibido: ${JSON.stringify(event)}`);
 
-        // 1. Validar Firma (Seguridad)
-        // NOTA: En desarrollo a veces es difícil probar firmas si no tienes el secreto correcto.
-        // Puedes comentar esto temporalmente si estás probando con Postman manual.
-        /*
-        const isValid = this.paymentsService.verifyWebhookSignature(event.data);
-        if (!isValid) {
-            this.logger.error('Firma de webhook inválida');
-            throw new BadRequestException('Invalid signature');
-        }
-        */
 
         const { event: eventType, data } = event;
 
@@ -57,7 +47,7 @@ export class PaymentsController {
                 await this.ordersService.confirmOrderPayment(reference, transaction.id, transaction.amount_in_cents / 100);
                 this.logger.log(`Orden ${reference} confirmada`);
 
-            } else if (reference.startsWith('CREDIT-')) {
+            } else if (reference.startsWith('PACKAGE-')) {
                 // Es una Recarga de Créditos
                 await this.creditsService.confirmRecharge(reference, transaction.id, transaction.amount_in_cents / 100);
                 this.logger.log(`Recarga ${reference} confirmada`);
