@@ -110,8 +110,8 @@ export class CreditsService {
     if (parts.length < 4) throw new BadRequestException('Referencia de paquete inválida');
 
     const packageType = parts[1]; // SMALL, MEDIUM, LARGE
-    const timestamp = parts.pop();
-    const userId = parts.slice(2, -1).join('-'); // UUID puede tener guiones
+    const timestamp = parts.pop(); // Remueve el último elemento (timestamp)
+    const userId = parts.slice(2).join('-'); // UUID completo desde posición 2 hasta el final
 
     // Mapear paquete a créditos totales (base + bonus)
     const PACKAGE_TOTAL_CREDITS = {
